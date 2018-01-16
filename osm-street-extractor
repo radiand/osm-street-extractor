@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+
+import argparse
+import unicodedata
+import re
+from enum import Enum
+import requests
+
+
+class Mode(Enum):
+    OSMBox, OSMPolygon = range(0, 2)
+
+
+def make_osm_box_query(box_boundary):
+    return '''
+[out:json];
+way({0},{1},{2},{3});
+out body;
+'''.format(*box_boundary).strip().replace('\n', '')
+
+def make_osm_polygon_query(polygon_boundary):
+    return '''
+[out:json];
+way(poly:{0});
+out body;
+'''.format(' '.join(polygon_boundary)).strip().replace('\n', '')
+
+
+def fetch_osm_data(url, query):
+    response = requests.get(url + '?data=' + query)
+    return response.json()
+
+
+def parse_box_values(vec):
+    splitted = vec.split(',')
+    return splitted if len(splitted) == 4 else None
+
+
+def parse_polygon_values(vec):
+    splitted = vec.split(' ')
+    MINIMAL_VERTEX_NUM = 3*2
+    return splitted if len(splitted) >= MINIMAL_VERTEX_NUM else None
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description='osm-xtract')
+    mode_grp = parser.add_mutually_exclusive_group(required=True)
+    mode_grp.add_argument('--osm-box', type=str,
+        help='box boundary comma separated, e.g. "lat_min,lng_min,lat_max,lng_max"')
+    mode_grp.add_argument('--osm-polygon', type=str,
+        help='polygon boundary space separated, e.g. "lat1 lng1 lat2 lng2 ..."')
+    parser.add_argument('-f', '--format-type', choices=['none', 'keyword', 'fullname'],
+        default='none')
+
+    return parser.parse_args()
+
+
+def generate_fullnames(streets):
+    result = set()
+    for street in streets:
+        street = street.lower()
+        if len(street.split()) > 1:
+            street = street.split()[-1]
+        result.add(street)
+    return result
+
+
+def generate_keywords(streets):
+    def remove_diacritics(name):
+        nfkd_form = unicodedata.normalize('NFKD', name)
+        return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+
+    def remove_suffixes(name):
+        patterns = [r'(sk)[aeio]$', r'(sk|ck)(iego|iej|a)$', r'(w)a$', r'(cz)(a|ej)$']
+        for pat in patterns:
+            try:
+                name = re.sub(pat, '\g<1>', name)
+            except:
+                continue
+        return name
+
+    fullname = generate_fullnames(streets)
+    result = set()
+    for street in fullname:
+        result.add(remove_suffixes(street))  # fullname utf-8
+        ascii_form = remove_diacritics(street)
+        result.add(remove_suffixes(ascii_form))  # without diacritics
+    return result
+
+
+def output(streets, format_type):
+    if format_type == 'none':
+        for street in streets:
+            print(street)
+    elif format_type == 'fullname':
+        for elem in sorted(generate_fullnames(streets)):
+            print(elem)
+    elif format_type == 'keyword':
+        for elem in sorted(generate_keywords(streets)):
+            print(elem)
+
+
+def main():
+    args = get_args()
+    base_url = 'https://www.overpass-api.de/api/interpreter'
+    mode = Mode.OSMBox if args.osm_box else Mode.OSMPolygon
+
+    if mode is Mode.OSMBox:
+        geo = parse_box_values(args.osm_box)
+        osm_data = fetch_osm_data(base_url, make_osm_box_query(geo))
+    elif mode is Mode.OSMPolygon:
+        geo = parse_polygon_values(args.osm_polygon)
+        osm_data = fetch_osm_data(base_url, make_osm_polygon_query(geo))
+
+    streets = set()
+    for elem in osm_data['elements']:
+        if 'way' in elem['type']:
+            try:
+                streets.add(elem['tags']['addr:street'])
+            except KeyError:
+                pass
+    output(streets, args.format_type)
+
+
+if __name__ == '__main__':
+    main()
