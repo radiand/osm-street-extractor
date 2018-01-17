@@ -18,6 +18,7 @@ way({0},{1},{2},{3});
 out body;
 '''.format(*box_boundary).strip().replace('\n', '')
 
+
 def make_osm_polygon_query(polygon_boundary):
     return '''
 [out:json];
@@ -37,25 +38,12 @@ def parse_box_values(vec):
 
 
 def parse_polygon_values(vec):
-    splitted = vec.split(' ')
+    splitted = vec.split(',')
     MINIMAL_VERTEX_NUM = 3*2
     return splitted if len(splitted) >= MINIMAL_VERTEX_NUM else None
 
 
-def get_args():
-    parser = argparse.ArgumentParser(description='osm-xtract')
-    mode_grp = parser.add_mutually_exclusive_group(required=True)
-    mode_grp.add_argument('--osm-box', type=str,
-        help='box boundary comma separated, e.g. "lat_min,lng_min,lat_max,lng_max"')
-    mode_grp.add_argument('--osm-polygon', type=str,
-        help='polygon boundary space separated, e.g. "lat1 lng1 lat2 lng2 ..."')
-    parser.add_argument('-f', '--format-type', choices=['none', 'keyword', 'fullname'],
-        default='none')
-
-    return parser.parse_args()
-
-
-def generate_fullnames(streets):
+def generate_single_words(streets):
     result = set()
     for street in streets:
         street = street.lower()
@@ -71,7 +59,7 @@ def generate_keywords(streets):
         return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
 
     def remove_suffixes(name):
-        patterns = [r'(sk)[aeio]$', r'(sk|ck)(iego|iej|a)$', r'(w)a$', r'(cz)(a|ej)$']
+        patterns = [r'(sk|ck)(iego|iej|[aeiou])$', r'(w)a$', r'(cz)(a|ej)$']
         for pat in patterns:
             try:
                 name = re.sub(pat, '\g<1>', name)
@@ -79,10 +67,10 @@ def generate_keywords(streets):
                 continue
         return name
 
-    fullname = generate_fullnames(streets)
+    singles = generate_single_words(streets)
     result = set()
-    for street in fullname:
-        result.add(remove_suffixes(street))  # fullname utf-8
+    for street in singles:
+        result.add(remove_suffixes(street))  # single words utf-8
         ascii_form = remove_diacritics(street)
         result.add(remove_suffixes(ascii_form))  # without diacritics
     return result
@@ -92,12 +80,25 @@ def output(streets, format_type):
     if format_type == 'none':
         for street in streets:
             print(street)
-    elif format_type == 'fullname':
-        for elem in sorted(generate_fullnames(streets)):
+    elif format_type == 'single':
+        for elem in sorted(generate_single_words(streets)):
             print(elem)
     elif format_type == 'keyword':
         for elem in sorted(generate_keywords(streets)):
             print(elem)
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description='osm-xtract')
+    mode_grp = parser.add_mutually_exclusive_group(required=True)
+    mode_grp.add_argument('--osm-box', type=str,
+        help='box boundary comma separated, e.g. "lat_min,lng_min,lat_max,lng_max"')
+    mode_grp.add_argument('--osm-polygon', type=str,
+        help='polygon boundary comma separated, e.g. "lat1,lng1,lat2,lng2,..."')
+    parser.add_argument('-f', '--format-type', choices=['none', 'keyword', 'single'],
+        default='none')
+
+    return parser.parse_args()
 
 
 def main():
