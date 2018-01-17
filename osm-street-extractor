@@ -22,7 +22,7 @@ out body;
 def make_osm_polygon_query(polygon_boundary):
     return '''
 [out:json];
-way(poly:{0});
+way(poly:"{0}");
 out body;
 '''.format(' '.join(polygon_boundary)).strip().replace('\n', '')
 
@@ -41,6 +41,14 @@ def parse_polygon_values(vec):
     splitted = vec.split(',')
     MINIMAL_VERTEX_NUM = 3*2
     return splitted if len(splitted) >= MINIMAL_VERTEX_NUM else None
+
+
+def parse_kml_polygon(vec):
+    result = []
+    for pair in vec.split(' '):
+        lng, lat = pair.split(',')
+        result += [lat, lng]
+    return result
 
 
 def generate_single_words(streets):
@@ -94,7 +102,7 @@ def get_args():
     mode_grp.add_argument('--osm-box', type=str,
         help='box boundary comma separated, e.g. "lat_min,lng_min,lat_max,lng_max"')
     mode_grp.add_argument('--osm-polygon', type=str,
-        help='polygon boundary comma separated, e.g. "lat1,lng1,lat2,lng2,..."')
+        help='polygon boundary in KML format, e.g. "lng1,lat1 lng2,lat2 ..."')
     parser.add_argument('-f', '--format-type', choices=['none', 'keyword', 'single'],
         default='none')
 
@@ -110,7 +118,7 @@ def main():
         geo = parse_box_values(args.osm_box)
         osm_data = fetch_osm_data(base_url, make_osm_box_query(geo))
     elif mode is Mode.OSMPolygon:
-        geo = parse_polygon_values(args.osm_polygon)
+        geo = parse_kml_polygon(args.osm_polygon)
         osm_data = fetch_osm_data(base_url, make_osm_polygon_query(geo))
 
     streets = set()

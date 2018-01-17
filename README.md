@@ -33,5 +33,11 @@ https://wiki.openstreetmap.org/wiki/Overpass_API/Language_Guide#Select_region_by
 1. Go to https://www.openstreetmap.org
 2. Click 'Export', then 'Manually select a different data'
 
+### how to get polygon boundary
+1. Go to http://boundingbox.klokantech.com/
+2. From the toolbox on the left select polygon icon
+3. Choose region
+4. Select KML from dropdown list
+
 ### how to write OSM query:
 https://wiki.openstreetmap.org/wiki/Overpass_API/Language_Guide
