@@ -63,8 +63,9 @@ def generate_single_words(streets):
 
 def generate_keywords(streets):
     def remove_diacritics(name):
-        nfkd_form = unicodedata.normalize('NFKD', name)
-        return ''.join([c for c in nfkd_form if not unicodedata.combining(c)])
+        norm_txt = unicodedata.normalize('NFD', name)
+        shaved = ''.join(c for c in norm_txt if not unicodedata.combining(c))
+        return unicodedata.normalize('NFC', shaved)
 
     def remove_suffixes(name):
         patterns = [r'(sk|ck)(iego|iej|[aeiou])$', r'(w)a$', r'(cz)(a|ej)$']
